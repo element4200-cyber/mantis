@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {parseTrades,base58,handleApi} from '../worker/backend.js';
+const mintBytes=Uint8Array.from({length:32},(_,i)=>i+1),mint=base58(mintBytes);
+const bytes=new Uint8Array(129);bytes.set([189,219,127,211,78,230,97,238]);bytes.set(mintBytes,8);const view=new DataView(bytes.buffer);view.setBigUint64(40,1500000000n,true);view.setBigUint64(48,500000000000n,true);bytes[56]=1;view.setBigInt64(89,1780000000n,true);
+const logs=['Program 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P invoke [1]','Program data: '+Buffer.from(bytes).toString('base64'),'Program 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P success'];
+const tx={meta:{err:null,logMessages:logs}};
+const buy=parseTrades(tx,mint,'signature');assert.equal(buy.length,1);assert.equal(buy[0].type,'buy');assert.equal(buy[0].solAmount,1.5);assert.equal(buy[0].price,0.000003);assert.equal(buy[0].timestamp,1780000000000);
+bytes[56]=0;logs[1]='Program data: '+Buffer.from(bytes).toString('base64');assert.equal(parseTrades(tx,mint,'s')[0].type,'sell');assert.equal(parseTrades(tx,'wrongmint','s').length,0);assert.equal(parseTrades({meta:{err:{failed:true},logMessages:logs}},mint,'s').length,0);
+const spoof={meta:{err:null,logMessages:[logs[0].replace('6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P','OtherProgram'),logs[1]]}};assert.equal(parseTrades(spoof,mint,'s').length,0);
+assert.equal((await handleApi(new Request('https://example.com/api/trades?mint=bad'),{})).status,400);
+assert.equal((await handleApi(new Request('https://example.com/api/live?mint='+mint),{})).status,503);
+const status=await(await handleApi(new Request('https://example.com/api/status'),{PUMPPORTAL_API_KEY:'server-only-secret'})).json();assert.deepEqual(status,{websocket:true,rpc:false});assert.equal(JSON.stringify(status).includes('server-only-secret'),false);
+console.log('Trade decoding, mint/program filtering, failed transaction rejection, API validation, and secret isolation passed.');

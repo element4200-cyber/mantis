@@ -4,9 +4,13 @@ Interactive WebGL battlefield with a procedural, articulated praying mantis, aut
 
 ## Use it
 
-Run `node scripts/dev.mjs` and open `http://127.0.0.1:4173`. Demo trades are clearly labeled and never represented as real market activity. Buy/sell buttons and automatic demo trades drive intensity, movement, strike frequency, particles, and prey density. Drag to orbit, scroll to zoom, and use the specimen layer controls. Sound is opt-in.
+Run `node scripts/build.mjs`, then `node scripts/dev.mjs` and open `http://127.0.0.1:4173`. Demo trades are clearly labeled and never represented as real market activity. Buy/sell buttons and automatic demo trades drive intensity, movement, strike frequency, particles, and prey density. Drag to orbit, scroll to zoom, and use the specimen layer controls. Sound is opt-in.
 
-After launch, open **Connect your token**, paste the Solana contract address or Pump.fun token URL, and connect. The CA is saved in this browser. Changing token or returning to demo resets session trade history. Repeated trade IDs are deduplicated. Quiet periods gradually cool aggression. The token link changes to the real Pump.fun coin page. The launch button always opens https://pump.fun/create.
+After launch, open **Owner settings** at `/admin`, sign in with the ChatGPT account that owns this Site, paste the Solana contract address or Pump.fun token URL, and save. Only that owner can change the CA or return everyone to demo. Settings are stored in D1 and shared by all viewers. Browsers refresh the configured CA every ten seconds; they cannot choose another live-feed token. Changing token resets session trade history. Repeated trade IDs are deduplicated. Quiet periods gradually cool aggression. The token link changes to the real Pump.fun coin page. The launch button always opens https://pump.fun/create.
+
+The deployed Site has its owner's verified account email in the server-side secret `BUGGPAD_OWNER_EMAIL`. Anonymous and other-account writes are rejected. The owner's Site-specific user ID is pinned on the first authorized save. No visitor can claim ownership. Sites supplies sanitized authenticated identity headers and owns the `/signin-with-chatgpt` flow. A different hosting provider must supply verified identity and strip spoofed identity headers before exposing these routes; bare HTTP headers are not an authentication mechanism outside Sites. Do not embed the owner secret in frontend files. The public website remains accessible without signing in.
+
+For local owner-interface preview only, set `BUGGPAD_DEV_OWNER=1` when running the loopback development server. Local D1 data is stored in ignored `.sites-runtime/local.sqlite`. This simulated local identity is never included in the deployed Worker. Production schema comes from Drizzle migrations. To change the schema, install the locked dependencies and run `node node_modules/drizzle-kit/bin.cjs generate --config drizzle.config.ts`.
 
 ## Live feed configuration
 
@@ -23,6 +27,8 @@ The chart shows observed SOL-per-token trade prices for the current session, not
 `node --check web/app.js`
 
 `node scripts/test-feed.mjs`
+
+`node scripts/test-settings.mjs`
 
 `node scripts/build.mjs`
 

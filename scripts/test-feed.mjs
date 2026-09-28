@@ -8,6 +8,7 @@ const buy=parseTrades(tx,mint,'signature');assert.equal(buy.length,1);assert.equ
 bytes[56]=0;logs[1]='Program data: '+Buffer.from(bytes).toString('base64');assert.equal(parseTrades(tx,mint,'s')[0].type,'sell');assert.equal(parseTrades(tx,'wrongmint','s').length,0);assert.equal(parseTrades({meta:{err:{failed:true},logMessages:logs}},mint,'s').length,0);
 const spoof={meta:{err:null,logMessages:[logs[0].replace('6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P','OtherProgram'),logs[1]]}};assert.equal(parseTrades(spoof,mint,'s').length,0);
 assert.equal((await handleApi(new Request('https://example.com/api/trades?mint=bad'),{})).status,400);
-assert.equal((await handleApi(new Request('https://example.com/api/live?mint='+mint),{})).status,503);
+const mockDb={prepare(){return{async first(){return{mint}}}}};
+assert.equal((await handleApi(new Request('https://example.com/api/live?mint='+mint),{DB:mockDb})).status,503);
 const status=await(await handleApi(new Request('https://example.com/api/status'),{PUMPPORTAL_API_KEY:'server-only-secret'})).json();assert.deepEqual(status,{websocket:true,rpc:false});assert.equal(JSON.stringify(status).includes('server-only-secret'),false);
 console.log('Trade decoding, mint/program filtering, failed transaction rejection, API validation, and secret isolation passed.');

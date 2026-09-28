@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+import { localDb } from './local-db.mjs';
+import { handleTokenSettings, authorizeAdminPage, normalizeMint } from '../worker/settings.js';
+import { handleApi, base58 } from '../worker/backend.js';
+import worker from '../worker/index.js';
+
+const env = { DB: localDb(), BUGGPAD_OWNER_EMAIL: 'owner@example.test' };
+const identity = { 'oai-authenticated-user-id': 'owner-site-id', 'oai-authenticated-user-email': env.BUGGPAD_OWNER_EMAIL };
+const visitor = { 'oai-authenticated-user-id': 'visitor-site-id', 'oai-authenticated-user-email': 'visitor@example.test' };
+const mint = base58(Uint8Array.from({ length: 32 }, (_, i) => i + 1));
+const req = (headers = {}, body, origin = 'https://example.test') => new Request('https://example.test/api/config', body === undefined ? { headers } : { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+assert.equal(normalizeMint('https://pump.fun/coin/' + mint), mint);
+assert.equal(normalizeMint('https://attacker.test/' + mint), null);
+assert.equal(normalizeMint('1'.repeat(44)), null);
+assert.deepEqual(await (await handleTokenSettings(req(), env)).json(), { mint: null, revision: 0, canEdit: false });
+for (const headers of [{}, visitor, { 'oai-authenticated-user-email': env.BUGGPAD_OWNER_EMAIL }]) {
+  assert.equal((await handleTokenSettings(req(headers, { mint, revision: 0 }), env)).status, 403);
+}
+assert.equal((await handleTokenSettings(req(identity, { mint, revision: 0 }, 'https://attacker.test'), env)).status, 403);
+assert.equal((await handleTokenSettings(req(identity, { mint, revision: 0 }), { DB: env.DB })).status, 403);
+assert.equal((await handleTokenSettings(req(identity, { mint: 'not-a-ca', revision: 0 }), env)).status, 400);
+assert.equal((await handleTokenSettings(req(identity, { mint, revision: 0 }), env)).status, 200);
+assert.deepEqual(await (await handleTokenSettings(req(), env)).json(), { mint, revision: 1, canEdit: false });
+assert.equal((await handleTokenSettings(req({ ...identity, 'oai-authenticated-user-id': 'different-id' }, { mint: null, revision: 1 }), env)).status, 403);
+assert.equal((await handleTokenSettings(req(identity, { mint: null, revision: 0 }), env)).status, 409);
+assert.equal((await authorizeAdminPage(new Request('https://example.test/admin'), env)).status, 302);
+assert.equal((await authorizeAdminPage(new Request('https://example.test/admin', { headers: visitor }), env)).status, 403);
+assert.equal(await authorizeAdminPage(new Request('https://example.test/admin', { headers: identity }), env), null);
+const otherMint = base58(new Uint8Array(32).fill(77));
+assert.equal((await handleApi(new Request('https://example.test/api/trades?mint=' + otherMint), env)).status, 403);
+assert.equal((await handleTokenSettings(req(identity, { mint: null, revision: 1 }), env)).status, 200);
+assert.deepEqual(await (await handleTokenSettings(req(), env)).json(), { mint: null, revision: 2, canEdit: false });
+assert.equal((await handleApi(new Request('https://example.test/api/trades?mint=' + mint), env)).status, 409);
+assert.equal((await worker.fetch(new Request('https://example.test/admin'), env)).status, 302);
+assert.equal((await worker.fetch(new Request('https://example.test/admin', { headers: visitor }), env)).status, 403);
+assert.equal((await worker.fetch(new Request('https://example.test/admin', { headers: identity }), env)).status, 200);
+assert.equal((await worker.fetch(new Request('https://example.test/admin.html', { headers: identity }), env)).status, 404);
+const publicHtml = await (await worker.fetch(new Request('https://example.test/'), env)).text();
+assert.equal(publicHtml.includes('id="mint"'), false);
+assert.equal(publicHtml.includes('id="token-form"'), false);
+console.log('Owner-only writes, persistent shared CA, pinned identity, CSRF rejection, stale-write conflicts, and feed token restrictions passed.');
